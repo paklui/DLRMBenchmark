@@ -1,0 +1,1 @@
+upstream: https://github.com/AMD-AIG-AIMA/DLRM_optimization.git @ 1565994; training submodule @ 1ec961f

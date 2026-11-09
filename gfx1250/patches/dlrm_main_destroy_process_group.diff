@@ -1,0 +1,22 @@
+diff --git a/recommendation_v2/torchrec_dlrm/dlrm_main.py b/recommendation_v2/torchrec_dlrm/dlrm_main.py
+index 1947f69..37fbfc7 100644
+--- a/recommendation_v2/torchrec_dlrm/dlrm_main.py
++++ b/recommendation_v2/torchrec_dlrm/dlrm_main.py
+@@ -934,6 +934,17 @@ def main(argv: List[str]) -> None:
+     if args.collect_multi_hot_freqs_stats:
+         multihot.save_freqs_stats()
+ 
++    # Explicitly tear down the NCCL/RCCL process group before interpreter exit.
++    # Without this, comm teardown happens implicitly during CUDA/HIP context +
++    # Python interpreter shutdown (in unspecified order), which we observed
++    # causing a "double free or corruption (!prev)" SIGABRT on exit in 2-node
++    # no-IB runs (both this script and PARAM's comms.py) -- after training/
++    # results had already completed successfully. dist.destroy_process_group()
++    # runs the orderly comm.finalize()/pg.shutdown() path while the interpreter
++    # and CUDA/HIP context are still fully alive, instead of leaving it to
++    # implicit atexit/static-destructor teardown.
++    dist.destroy_process_group()
++
+ 
+ if __name__ == "__main__":
+     main(sys.argv[1:])
