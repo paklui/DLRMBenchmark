@@ -22,11 +22,11 @@ GPUs (ranks). The scripts were written against the `DLRM_optimization` layout (l
 
 ## Running
 
-1 node (on the node; recommended batch 16,384 per rank):
+1 node (on the node; recommended batch 131,072 per rank, ~10 min for 600 iterations):
 
 ```bash
 cd ~/DLRM_optimization
-CT=dlrm-gfx1250-rocm102-ainic-run RCCL=bundled CUMEM=1 ITERS=600 BATCH=16384 \
+CT=dlrm-gfx1250-rocm102-ainic-run RCCL=bundled CUMEM=1 ITERS=600 BATCH=131072 \
   EXTRA="PYTORCH_TUNABLEOP_ENABLED=0 HSA_ENABLE_SDMA=1" WD_IDLE=300 bash dlrm_1n8.sh
 ```
 
@@ -34,11 +34,11 @@ CT=dlrm-gfx1250-rocm102-ainic-run RCCL=bundled CUMEM=1 ITERS=600 BATCH=16384 \
 
 ```bash
 cd ~/DLRM_optimization
-NPN=8 CT=dlrm-gfx1250-rocm102-ainic-run RCCL=bundled CUMEM=1 ITERS=600 BATCH=16384 \
+NPN=8 CT=dlrm-gfx1250-rocm102-ainic-run RCCL=bundled CUMEM=1 ITERS=600 BATCH=131072 \
   EXTRA="PYTORCH_TUNABLEOP_ENABLED=0 HSA_ENABLE_SDMA=0" WD_IDLE=300 TMO=3600 bash dlrm_2n.sh
 ```
 
-Steady-state throughput is averaged from iteration 250, so run at least ~500 iterations. Below 1 it/s the progress bar shows s/it.
+Steady-state throughput is averaged from iteration 250, so run at least ~500 iterations. Below 1 it/s the progress bar shows s/it (at 131,072 on 2 nodes: ~1.07 s/it = 0.93 it/s); `dlrm_2n.sh` then prints an invalid `steady` value in its summary (it averages only it/s samples), so read the s/it progress lines.
 Records/s = it/s x batch per rank x ranks.
 
 Settings that matter: keep `NCCL_PXN_DISABLE=1` (PXN relays with GPU-direct reset the node on gfx1250 DPX; recent RCCL develop keeps PXN off
@@ -51,14 +51,16 @@ MI300 results).
 | --- | --- | --- | --- | --- |
 | 1 node | 8 | 16,384 | 8.45 | 1.11 M |
 | 1 node | 8 | 65,536 | 2.20 | 1.15 M |
-| 1 node | 8 | 131,072 | 1.04 | 1.09 M |
+| 1 node | 8 | **131,072 (recommended)** | 1.04 | 1.09 M |
 | 1 node | 8 | 262,144 | 0.50 | 1.05 M |
 | 2 nodes | 16 | 16,384 | 7.13 (full epoch: 7.09) | 1.87 M |
 | 2 nodes | 16 | 65,536 | 1.89 | 1.99 M |
-| 2 nodes | 16 | 131,072 | 0.93 | 1.96 M |
+| 2 nodes | 16 | **131,072 (recommended)** | 0.93 | **1.96 M (1.79x)** |
 
 - 2 nodes give ~1.7x the records/s of 1 node (~85% per GPU). Throughput is flat from 16 K to 262 K per rank: larger batches fit in memory
   but do not speed up training.
+- Recommended 131,072 per rank: 2-node throughput at the top of the range (1.96 M records/s; 65,536 gave 1.99 M, within run-to-run variance)
+  and the best 2-node scaling (1.79x).
 - At batch 256 per rank, 2 nodes are latency-bound (~1.03x of 1 node).
 - With RCCL develop 2.32.3 (LD_PRELOAD), batch 256 is ~9% faster, but the job aborts at exit with `double free or corruption (!prev)`;
   the image RCCL 2.31.2 exits cleanly.
