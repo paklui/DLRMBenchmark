@@ -15,6 +15,7 @@ EXTRA=${EXTRA-PYTORCH_TUNABLEOP_ENABLED=0}; WD_IDLE=${WD_IDLE:-180}
 MASTER=192.168.1.215; CAIRO=192.168.1.218; SSHC="ssh -o BatchMode=yes -o ConnectTimeout=15 -o LogLevel=ERROR $CAIRO"
 DL=$HOME/DLRM_optimization; cd "$DL" || exit 1
 SFX=_2n$NPN; [ "$RCCL" = bundled ] && SFX=${SFX}_bundled; SFX=${SFX}_cumem$CUMEM
+TF32_MODE=${TF32_MODE:-1}; [ "$TF32_MODE" = 0 ] && SFX=${SFX}_fp32   # TF32_MODE=0: launch-script FP32 branch (no --allow_tf32; rocBLAS unless EXTRA sets TORCH_BLAS_PREFER_HIPBLASLT=1)
 ENV=utils/DLRM_set_env_variables_gfx1250$SFX.sh; LAUNCH=DLRM_local_launch_gfx1250${SFX}_${ITERS}iter.sh
 DEVS=$(seq -s, 0 $((NPN-1)))
 sed -e "s/^export HIP_VISIBLE_DEVICES=.*/export HIP_VISIBLE_DEVICES=$DEVS/" \
@@ -22,6 +23,7 @@ sed -e "s/^export HIP_VISIBLE_DEVICES=.*/export HIP_VISIBLE_DEVICES=$DEVS/" \
 [ "$NPN" != 2 ] && sed -i 's/^export NCCL_RINGS=/# 2n: ring layout is for 2 nodes x 2 ranks, not used: export NCCL_RINGS=/' $ENV
 [ "$RCCL" = bundled ] && sed -i -e 's/^export LD_PRELOAD=/# bundled RCCL: export LD_PRELOAD=/' -e 's/^export LD_LIBRARY_PATH=\/root\/rccl-develop/# bundled RCCL: export LD_LIBRARY_PATH=\/root\/rccl-develop/' $ENV
 sed -e "s/^export NUM_TRAIN_BATCHES=2000\$/export NUM_TRAIN_BATCHES=$ITERS/" \
+    -e "s/^export TF32_MODE=1/export TF32_MODE=$TF32_MODE/" \
     -e "s#--nnodes \$((\$WORLD_SIZE / 4))#--nnodes \$((\$WORLD_SIZE / $NPN))#" \
     -e "s/--nproc_per_node 4/--nproc_per_node $NPN/" \
     -e "s#utils/DLRM_set_env_variables_gfx1250.sh#$ENV#" \

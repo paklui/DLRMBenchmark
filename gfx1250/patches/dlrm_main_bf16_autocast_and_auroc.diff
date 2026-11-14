@@ -1,0 +1,38 @@
+--- a/training/recommendation_v2/torchrec_dlrm/dlrm_main.py
++++ b/training/recommendation_v2/torchrec_dlrm/dlrm_main.py
+@@ -389,14 +389,14 @@
+     )
+     iterator = itertools.chain(iterator, two_filler_batches)
+ 
+-    auroc = metrics.AUROC(compute_on_step=False, task='binary').to(device)
++    auroc = metrics.AUROC(task='binary').to(device)
+ 
+     with torch.no_grad():
+         while True:
+             try:
+                 _loss, logits, labels = eval_pipeline.progress(iterator)
+                 preds = torch.sigmoid(logits)
+-                auroc(preds, labels)
++                auroc.update(preds, labels)
+                 if is_rank_zero:
+                     pbar.update(1)
+             except StopIteration:
+@@ -493,7 +493,8 @@
+             if is_rank_zero and print_lr:
+                 for i, g in enumerate(train_pipeline._optimizer.param_groups):
+                     print(f"lr: {it} {i} {g['lr']:.6f}")
+-            train_pipeline.progress(iterator)
++            with torch.autocast("cuda", dtype=torch.bfloat16, enabled=os.environ.get("DLRM_BF16") == "1"):
++                train_pipeline.progress(iterator)
+             lr_scheduler.step()
+             if is_rank_zero:
+                 pbar.update(1)
+@@ -660,6 +661,8 @@
+     mllogger.event(key=mllog_constants.CACHE_CLEAR, value=True)
+     mllogger.start(key=mllog_constants.INIT_START)
+ 
++    if os.environ.get("DLRM_EVAL") == "1":
++        argv = list(argv) + ["--evaluate_on_training_end", "--limit_test_batches", os.environ.get("DLRM_EVAL_BATCHES", "300")]
+     args = parse_args(argv)
+     for name, val in vars(args).items():
+         try:
